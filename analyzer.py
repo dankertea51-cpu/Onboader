@@ -95,13 +95,19 @@ MIGRATION_HINTS = ("migrations/", "db/migrate/", "alembic/")
 
 
 def run_git(repo, args):
-    """Запускает git и возвращает stdout либо пустую строку."""
+    """Запускает git и возвращает stdout либо пустую строку.
+
+    Кодировка задана явно: git отдаёт UTF-8, а на Windows локаль по
+    умолчанию (например cp1251) ломает декодирование имён коммитеров.
+    """
     try:
         out = subprocess.run(
             ["git", "-C", repo] + args,
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            timeout=30,
         )
-        if out.returncode == 0:
+        if out.returncode == 0 and out.stdout is not None:
             return out.stdout
     except (OSError, subprocess.TimeoutExpired):
         pass
@@ -328,6 +334,10 @@ def build_checklist(result):
 
 
 def main(argv):
+    # На Windows stdout по умолчанию в локальной кодировке (cp1251),
+    # а onboarder.js читает вывод как UTF-8 — приводим к UTF-8 явно.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     repo, output = ".", None
     args, i = argv[1:], 0
     while i < len(args):
